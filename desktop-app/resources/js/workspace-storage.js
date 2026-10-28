@@ -101,10 +101,11 @@
     return value.slice();
   }
 
-  function recoveryFoldersFromStoredPath(value) {
+  function recoveryFoldersFromStoredPath(value, root) {
+    root = root || 'Linked Workspace';
     if (!value) return [];
     const normalized = normalizePathSeparators(value);
-    if (!normalized.startsWith('Linked Workspace/')) return [];
+    if (!normalized.startsWith(root + '/')) return [];
     const parts = normalized.split('/');
     parts.shift();
     const filename = parts.pop();
@@ -375,6 +376,7 @@
       else await this._initBrowser();
       await this._migrateLegacyNormalDocuments();
       if (this.desktop) await this._migrateLinkedRecoveryDocuments();
+      if (this.desktop) await this._migrateCloudRecoveryDocuments();
       this.ready = true;
       try {
         await this.purgeExpiredTrash();
@@ -545,6 +547,7 @@
       await this._ensureDirectory(vaultPath);
       await this._ensureDirectory(workspacePath);
       await this._ensureDirectory(await this._pathJoin(vaultPath, 'Linked Workspace'));
+      await this._ensureDirectory(await this._pathJoin(vaultPath, 'Cloud Workspace'));
       await this._ensureDirectory(await this._pathJoin(vaultPath, 'Secret Workspace'));
       await this._ensureDirectory(secretPath);
       await this._ensureDirectory(internalPath);
@@ -620,6 +623,18 @@
       }
     }
 
+    async _migrateCloudRecoveryDocuments() {
+      const drafts = [];
+      for (const item of this.vaultIndex.documents) {
+        if (!item.remoteSource && item.kind !== 'cloud-recovery') continue;
+        if (item.vaultRelativePath === await this._desktopDocumentRelativePath(item, this.vaultOrganization)) continue;
+        drafts.push(Object.assign({}, item, { contentLoaded: false, _storageRevision: normalizedStorageRevision(item.storageRevision) }));
+      }
+      // A migration is never allowed to invent an empty draft for a missing body.
+      for (const draft of drafts) await this.loadDocumentContent(draft.id);
+      if (drafts.length) await this.saveDocuments(drafts, this.vaultOrganization, { changedIds: drafts.map(item => item.id) });
+    }
+
     async _rebuildDesktopIndex(workspacePath) {
       const organization = this.vaultOrganization && typeof this.vaultOrganization === 'object'
         ? cloneJson(this.vaultOrganization, null)
@@ -692,8 +707,8 @@
             vaultRelativePath: normalizePathSeparators([storageRoot].concat(relativeSegments, entry.entry).join('/')),
             // A lost index cannot safely tell us the original source path.
             // Preserve these bodies as recovery documents, not invented links.
-            kind: storageRoot === 'Linked Workspace' ? 'linked-recovery' : undefined,
-            recoveryFolderSegments: storageRoot === 'Linked Workspace' ? validatedRecoveryFolderSegments(relativeSegments) : undefined,
+            kind: storageRoot === 'Linked Workspace' ? 'linked-recovery' : storageRoot === 'Cloud Workspace' ? 'cloud-recovery' : undefined,
+            recoveryFolderSegments: storageRoot !== 'Workspace' ? validatedRecoveryFolderSegments(relativeSegments) : undefined,
             contentLoaded: false
           });
         }
@@ -701,6 +716,7 @@
 
       await walk(workspacePath, [], null, 'Workspace');
       await walk(await this._pathJoin(this.vaultPath, 'Linked Workspace'), [], null, 'Linked Workspace');
+      await walk(await this._pathJoin(this.vaultPath, 'Cloud Workspace'), [], null, 'Cloud Workspace');
       if (documents.length) documents[0].isOpen = true;
       this.vaultOrganization = organization;
       return {
@@ -1145,6 +1161,7 @@
     }
 
     async _desktopDocumentRelativePath(tab, organization) {
+      if (tab.remoteSource || tab.kind === 'cloud-recovery') return this._desktopCloudDocumentRelativePath(tab);
       const linked = Boolean(tab.sourcePath) || tab.kind === 'linked-recovery' || tab.kind === 'linked-workspace-guide';
       const segments = linked ? ['Linked Workspace'] : ['Workspace'].concat(await this._desktopFolderSegments(tab, organization));
       if (tab.kind === 'linked-recovery' && !tab.sourcePath) {
@@ -1179,11 +1196,31 @@
       return normalizePathSeparators(segments.join('/'));
     }
 
+    async _desktopCloudDocumentRelativePath(tab) {
+      requireDocumentId(tab && tab.id);
+      const segments = ['Cloud Workspace'];
+      if (tab.remoteSource) {
+        // Provider policy derives a safe physical identity. Legacy Nextcloud hashes
+        // and folder names are unchanged; importing metadata never grants access.
+        const policy=globalThis.MarkdownCloudProviders;
+        if(!policy)throw new TypeError('Cloud provider recovery policy is unavailable.');
+        const identity=policy.recoveryIdentity(tab.remoteSource);
+        if(typeof identity.accountIdentity!=='string' || !identity.accountIdentity || typeof identity.accountName!=='string' || !Array.isArray(identity.folders))throw new TypeError('Invalid cloud recovery identity.');
+        if(identity.folders.length>100 || identity.folders.some(part=>typeof part!=='string' || !part || part==='.' || part==='..' || /[\\/\u0000-\u001f]/.test(part)))throw new TypeError('Invalid cloud recovery hierarchy.');
+        const accountHash=await stableDocumentIdSuffix(identity.accountIdentity);
+        segments.push(sanitizePathSegment(identity.accountName,'Cloud account')+'--'+accountHash);
+        segments.push(...identity.folders.map(part=>sanitizePathSegment(part,'Folder')));
+      } else segments.push(...validatedRecoveryFolderSegments(tab.recoveryFolderSegments));
+      validatedRecoveryFolderSegments(segments.slice(1));
+      segments.push(sanitizePathSegment(tab.title, 'Untitled') + '--' + await stableDocumentIdSuffix(tab.id) + '.md');
+      return normalizePathSeparators(segments.join('/'));
+    }
+
     async _backupDocumentRelativePath(tab, organization) {
       const storedPath = normalizePathSeparators(tab && (tab._vaultRelativePath || tab.vaultRelativePath));
       if (
         storedPath &&
-        (storedPath.startsWith('Workspace/') || storedPath.startsWith('Linked Workspace/')) &&
+        (storedPath.startsWith('Workspace/') || storedPath.startsWith('Linked Workspace/') || storedPath.startsWith('Cloud Workspace/')) &&
         !storedPath.split('/').some(function(segment) { return segment === '.' || segment === '..'; })
       ) {
         return storedPath;
@@ -2804,9 +2841,15 @@
             'scrollPos', 'previewScrollPos', 'previewScrollLeft'].forEach(function(key) {
               if (Object.prototype.hasOwnProperty.call(importedMetadata, key)) metadata[key] = importedMetadata[key];
             });
+          const cloud = Boolean(importedMetadata.remoteSource || importedMetadata.kind === 'cloud-recovery' || String(importedMetadata.vaultRelativePath || '').startsWith('Cloud Workspace/'));
           const linked = Boolean(importedMetadata.sourcePath || importedMetadata.linkedRootId ||
             importedMetadata.sourceKind || importedMetadata.kind === 'linked-recovery');
-          if (linked) {
+          if (cloud) {
+            metadata.kind = 'cloud-recovery';
+            metadata.workspaceId = 'workspace_default';
+            metadata.folderId = null;
+            metadata.recoveryFolderSegments = recoveryFoldersFromStoredPath(importedMetadata.vaultRelativePath || importedMetadata._vaultRelativePath, 'Cloud Workspace');
+          } else if (linked) {
             metadata.kind = 'linked-recovery';
             metadata.workspaceId = 'workspace_default';
             metadata.folderId = null;
@@ -3035,6 +3078,7 @@
         const ownedPaths = [
           await this._pathJoin(this.vaultPath, 'Workspace'),
           await this._pathJoin(this.vaultPath, 'Linked Workspace'),
+          await this._pathJoin(this.vaultPath, 'Cloud Workspace'),
           await this._pathJoin(this.vaultPath, 'Secret Workspace'),
           await this._pathJoin(this.vaultPath, INTERNAL_DIR)
         ];

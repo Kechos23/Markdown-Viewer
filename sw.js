@@ -1,4 +1,4 @@
-const CACHE_NAME = 'markdown-viewer-cache-v3.10.5';
+const CACHE_NAME = 'markdown-viewer-cache-v3.10.5-cloud-experimental.1';
 
 // PERF-011: Split precache into critical (local files) and lazy (CDN libraries)
 // Critical assets are precached during SW install for instant offline startup
@@ -8,6 +8,19 @@ const CRITICAL_ASSETS = [
   './workspace-storage.js',
   './visual-settings-adapters.js',
   './visual-settings-store.js',
+  './native-markdown-source.js',
+  './cloud-model.js',
+  './cloud-providers.js',
+  './cloud-platform.js',
+  './webdav-source.js',
+  './nextcloud-source.js',
+  './nextcloud-provider.js',
+  './webdav-provider.js',
+  './cloud-operations.js',
+  './cloud-copy.js',
+  './cloud-workspace.js',
+  './nextcloud-ui.js',
+
   './script.js',
   './preview-worker.js',
   './styles.css',
@@ -35,6 +48,19 @@ const NETWORK_FIRST_LOCAL_PATHS = new Set([
   '/workspace-storage.js',
   '/visual-settings-adapters.js',
   '/visual-settings-store.js',
+  '/native-markdown-source.js',
+  '/cloud-model.js',
+  '/cloud-providers.js',
+  '/cloud-platform.js',
+  '/webdav-source.js',
+  '/nextcloud-source.js',
+  '/nextcloud-provider.js',
+  '/webdav-provider.js',
+  '/cloud-operations.js',
+  '/cloud-copy.js',
+  '/cloud-workspace.js',
+  '/nextcloud-ui.js',
+
   '/script.js',
   '/preview-worker.js',
   '/styles.css',
@@ -43,6 +69,7 @@ const NETWORK_FIRST_LOCAL_PATHS = new Set([
   '/seo/welcome-content.mjs',
   '/assets/lucide-icons.css',
   '/assets/document-toc.js',
+  '/RELEASE_NOTES',
   '/sw.js'
 ]);
 

@@ -20,6 +20,8 @@ const FINAL_DIR = path.join(DIST_DIR, "markdown-viewer");
 const TEMP_BUILD_ROOT = path.join(DIST_DIR, ".standalone-build");
 const NEU_CLI = "@neutralinojs/neu@11.7.0";
 
+const targetArgument = process.argv.find(value => value.startsWith("--target="));
+const requestedTarget = targetArgument && targetArgument.slice("--target=".length);
 const TARGETS = [
   "linux_arm64",
   "linux_armhf",
@@ -32,7 +34,8 @@ const TARGETS = [
   sourceName: `neutralino-${platform}`,
   outputName: `markdown-viewer-${platform}`,
   buildKey: platform.replace(/\.exe$/, ""),
-}));
+})).filter(target => !requestedTarget || target.buildKey === requestedTarget);
+if (!TARGETS.length) throw new Error("Unknown build target: " + requestedTarget);
 
 function createConfigOverride(distributionPath, buildKey) {
   const config = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));

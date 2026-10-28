@@ -1,0 +1,23 @@
+# Personal all-in-one: keep the existing reverse proxy and host port.
+services:
+  markdown-viewer:
+    image: markdown-viewer-cloud:dev
+    build:
+      context: ..
+      dockerfile: self-hosted/Dockerfile
+    ports:
+      - "9777:80"
+    environment:
+      CLOUD_ENABLED: "true"
+      CLOUD_ACCESS_PASSWORD: "${CLOUD_ACCESS_PASSWORD:?Set a cloud access password of at least 12 characters}"
+      CLOUD_REMEMBER_CONNECTIONS: "true"
+    volumes:
+      - cloud-state:/data
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+volumes:
+  cloud-state:

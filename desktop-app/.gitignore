@@ -26,3 +26,7 @@ neutralino.js
 
 # Docker build output
 /output
+
+# Native cloud extension build outputs
+/cloud-extension/build/
+/extensions/cloud/*.exe
