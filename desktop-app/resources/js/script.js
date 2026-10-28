@@ -1,4 +1,9 @@
 document.addEventListener("DOMContentLoaded", async function () {
+  if((window.MarkdownCloudConnector?.mode==='multi-user' || document.documentElement.dataset.cloudMode==='multi-user') && !window.MarkdownCloudBrowserStorage){
+    const error=document.createElement('p');error.id='cloud-storage-error';error.setAttribute('role','alert');error.textContent='The isolated cloud workspace could not be initialized. Reload this page without clearing browser storage.';document.querySelector('.app-container')?.replaceChildren(error);return;
+  }
+  const localStorage = window.MarkdownCloudBrowserStorage?.local || window.localStorage;
+  const sessionStorage = window.MarkdownCloudBrowserStorage?.session || window.sessionStorage;
   window.alert = function(message) { showAppToast(message); };
   const PRIVATE_MODE_KEY = 'markdownViewerPrivateMode';
   const APP_VERSION = '3.10.5';
@@ -35524,6 +35529,19 @@ ${selector} .arrowheadPath {
         if (workspaceMaintenancePending || suspendWorkspacePersistence || nativeMarkdownSaveInProgress || isPrivateStorageMode()) throw new Error('Wait for the current operation and turn off Private mode before removing connections.');
         saveCurrentTabState(); saveSecondarySplitState();
         if (!(await _flushTabsToStorage(tabs, { requireExactCommit:true }))) throw new Error('Local drafts could not be committed. The connection was kept.');
+      },
+      flushIdentityDrafts: async function() {
+        if(workspaceMaintenancePending || suspendWorkspacePersistence || nativeMarkdownSaveInProgress || isPrivateStorageMode())throw new Error('Finish current operations and turn off Private mode before switching profiles.');
+        saveSecondarySplitState();await flushWorkspaceBeforeExit();
+      },
+      preserveIdentityDrafts: async function() {
+        if(isPrivateStorageMode())throw new Error('Turn off Private mode before leaving this workspace.');
+        saveCurrentTabState(); saveSecondarySplitState();
+        const snapshots=tabs.filter(tab=>tab.contentLoaded!==false && typeof tab.content==='string' && !isTemporaryDocument(tab));
+        for(const tab of snapshots)if(!writeDirtyDocumentJournal(tab,tab.content))throw new Error('Recovery storage is unavailable. Keep this tab open.');
+        await secretDirtyJournalChain;
+        if(isSecretWorkspaceUnlocked())await flushSecretWorkspaceToStorage();
+        if(emergencySavePendingCount>0 || secretJournalPendingCount>0)throw new Error('Recovery could not be confirmed. Keep this tab open.');
       },
       confirm: function(text, options) { return showLinkedConfirmation(text, Object.assign({}, options, { cloudSource:true })); },
       requestName: function(options) {

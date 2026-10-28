@@ -26,3 +26,9 @@ self-hosted/dist/
 # Local deployment secrets
 .env
 **/.env
+
+# Never commit or bake connector profile/credential state into images
+**/profiles.sqlite*
+**/credential.key
+**/credentials.enc
+**/cloud-state/

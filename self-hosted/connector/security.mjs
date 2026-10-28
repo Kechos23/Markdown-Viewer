@@ -70,7 +70,8 @@ export function validateConfig(config) {
   if(!origin && !config.dynamicOrigin)throw fail('Configure a public origin or dynamic same-origin mode.');
   if(origin && (origin.origin!==config.origin || (origin.protocol!=='https:' && !(config.development===true && ['localhost','127.0.0.1'].includes(origin.hostname)))))throw fail('Configure an HTTPS public origin (HTTP loopback only in development).');
   if(config.enabled===false)return config;
-  if(!config.owner || !/^[a-zA-Z0-9._-]{1,64}$/.test(config.owner.username) || !/^[0-9a-f]{32}$/.test(config.owner.salt) || !/^[0-9a-f]{128}$/.test(config.owner.passwordHash))throw fail('Provision one owner before startup.');
+  if(config.mode!==undefined && !['personal','multi-user'].includes(config.mode))throw fail('Unknown cloud mode.');
+  if(config.mode!=='multi-user' && (!config.owner || !/^[a-zA-Z0-9._-]{1,64}$/.test(config.owner.username) || !/^[0-9a-f]{32}$/.test(config.owner.salt) || !/^[0-9a-f]{128}$/.test(config.owner.passwordHash)))throw fail('Provision one owner before startup.');
   if(!Array.isArray(config.targets) || (!config.targets.length && !config.allowAnyPublicTarget) || config.targets.length>20)throw fail('Configure 1–20 approved remote targets.');
   const roots=new Set();
   for(const target of config.targets){for(const name of ['allowPrivate','allowHttpLoopback'])if(target[name]!==undefined && typeof target[name]!=='boolean')throw fail('Target policy flags must be boolean.');if(!['nextcloud','webdav'].includes(target.providerId))throw fail('Unsupported provider.');const url=remoteURL(target.root);if(url.search)throw fail('Invalid target.');target.root=url.href.replace(/\/+$/,'')+'/';if(roots.has(target.root))throw fail('Duplicate targets.');roots.add(target.root);if(url.protocol!=='https:' && !(config.development && target.allowHttpLoopback && ['127.0.0.1','[::1]'].includes(url.hostname)))throw fail('Target requires HTTPS.');}

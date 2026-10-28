@@ -1,7 +1,11 @@
 (function () {
   'use strict';
+  const requiresCloudScope=globalThis.MarkdownCloudConnector?.mode==='multi-user' || (typeof document!=='undefined' && document.documentElement?.dataset?.cloudMode==='multi-user');
+  if(requiresCloudScope && !globalThis.MarkdownCloudBrowserStorage)return;
 
-  const DATABASE_NAME = 'markdownViewerWorkspace';
+  const localStorage = globalThis.MarkdownCloudBrowserStorage?.local || globalThis.localStorage;
+  const sessionStorage = globalThis.MarkdownCloudBrowserStorage?.session || globalThis.sessionStorage;
+  const DATABASE_NAME = globalThis.MarkdownCloudBrowserStorage?.databaseName || 'markdownViewerWorkspace';
   const DATABASE_VERSION = 3;
   const VAULT_FORMAT_VERSION = 1;
   const VAULT_NAME = 'Markdown Viewer Vault';

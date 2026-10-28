@@ -30,3 +30,9 @@ self-hosted/dist/
 
 # Isolated browser verification output
 test-results-copy-*/
+
+# Never commit or bake connector profile/credential state into images
+**/profiles.sqlite*
+**/credential.key
+**/credentials.enc
+**/cloud-state/

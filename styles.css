@@ -15183,3 +15183,14 @@ body.release-notes-active .mobile-stats-container {
 #cloud-copy-modal .reset-modal-confirm { background:var(--accent-color); border-color:var(--accent-color); color:#fff; }
 [data-theme="dark"] #cloud-copy-modal .reset-modal-confirm { background:#1f6feb; border-color:#1f6feb; }
 #cloud-copy-modal .reset-modal-confirm:hover { filter:brightness(.9); }
+
+/* Connector profile dialogs use the same surfaces as Cloud connections. */
+.cloud-profile-dialog, .cloud-identity-block { position:fixed; inset:0; margin:auto; width:calc(100% - 32px); max-width:480px; max-height:calc(100dvh - 32px); overflow:auto; padding:20px; border:1px solid var(--border-color); border-radius:12px; color:var(--text-color); background:var(--editor-bg); }
+.cloud-profile-dialog::backdrop, .cloud-identity-block::backdrop { background:rgba(0,0,0,.55); }
+.cloud-profile-dialog h2, .cloud-identity-block h2 { font-size:var(--ui-font-lg); margin:0 0 12px; }
+.cloud-profile-dialog label { display:block; font-size:var(--ui-font-sm); margin-top:12px; }
+.cloud-profile-dialog input:not([type=checkbox]) { display:block; box-sizing:border-box; width:100%; padding:9px; margin-top:5px; color:var(--text-color); background:var(--editor-bg); border:1px solid var(--border-color); border-radius:6px; font:inherit; }
+.cloud-profile-dialog .cloud-sidebar-choice { display:flex; gap:7px; align-items:center; }
+.cloud-profile-dialog button, .cloud-profile-controls button { margin:8px 6px 0 0; }
+.cloud-profile-dialog [role=status] { color:var(--color-danger-fg); font-size:var(--ui-font-sm); }
+.cloud-profile-dialog input:focus-visible { outline:2px solid var(--accent-color); outline-offset:1px; }

@@ -1,4 +1,4 @@
-// Personal desktop feature. Only non-secret source identity is passed to the editor.
+// Shared cloud UI. Only non-secret source identity is passed to the editor.
 (function (target) {
   'use strict';
   const providers=target.MarkdownCloudProviders, model=target.MarkdownCloudModel;
@@ -182,40 +182,43 @@
   }
   async function restoreWorkspace() {
     try {
+      let hadSavedWorkspace=false;
       const storage = platform.storage || target.Neutralino?.storage;
       if (storage?.getData) {
         try {
           const saved = JSON.parse(await storage.getData(WORKSPACE_KEY));
-          if (saved.version === 1 && Array.isArray(saved.accounts)) workspace = {
+          if (saved.version === 1 && Array.isArray(saved.accounts)) {hadSavedWorkspace=true;workspace = {
             version: 1, enabled: saved.enabled === true || (saved.enabled === undefined && saved.accounts.length > 0), autoConnect: saved.autoConnect !== false, activeId: String(saved.activeId || ''), hidden:saved.hidden === true, collapsed:saved.collapsed === true, sort:saved.sort === 'desc' ? 'desc' : 'asc', accounts: saved.accounts.slice(0, 20).filter(item => model.isAccountId(item.id)).map(item => ({
               id: item.id, ...(item.providerId ? {providerId:item.providerId} : {}), lastFolder: typeof item.lastFolder === 'string' ? item.lastFolder : '',
               collapsed:item.collapsed === true, skipSaveConfirmation:item.skipSaveConfirmation === true,
               folders: (Array.isArray(item.folders) ? item.folders : []).slice(0,50).filter(folder => typeof folder.href === 'string' && typeof folder.name === 'string').map(folder => ({ href: folder.href, name: folder.name.slice(0,160) }))
             }))
           };
+          }
         } catch (_) { /* No saved workspace yet. Credentials are never stored here. */ }
       }
+      if(!hadSavedWorkspace && platform.canRestoreSession)workspace.enabled=true;
       applyExpansion(); updateVisibility();
       platform.setEnabled(workspace.enabled);
-      if (!workspace.enabled || !workspace.autoConnect || !workspace.accounts.length) return;
+      if (!workspace.enabled || !workspace.autoConnect || (!workspace.accounts.length && !platform.canRestoreSession)) return;
       await loadRemembered();
     } catch (error) { message(error.message, 'error'); }
   }
   async function loadRemembered(interactive=false) {
-    if (!workspace.enabled || !secureAccountsAvailable()) return;
+    if (!workspace.enabled || (!secureAccountsAvailable() && !platform.canRestoreSession)) return;
     const stored = await platform.listAccounts({interactive});
     if (!workspace.enabled) return;
     for (const account of stored.slice(0,20)) {
       try {
         const provider=providers.accountProvider(account);
         const client=await provider.restore(account,platform);
-        accounts.set(account.id,{id:account.id,providerId:provider.id,client,remembered:true});
+        accounts.set(account.id,{id:account.id,providerId:provider.id,client,remembered:account.remembered!==false});
       } catch(error) { message(error.message,'error'); }
     }
     renderAccounts();
     const selected = accounts.get(workspace.activeId) || accounts.values().next().value;
     if (selected) { message('Reconnecting to cloud…'); await activateAccount(selected, undefined, true); }
-    else { platform.keepAlive(false); message('No remembered cloud accounts.'); }
+    else { platform.keepAlive(false); message(platform.canRestoreSession?'No cloud connections in this session.':'No remembered cloud accounts.'); }
   }
   async function setCloudEnabled(enabled) {
     if (pendingLogin || saves.size) throw new Error('Wait for the current cloud operation to finish.');
@@ -419,6 +422,7 @@
       const notice=document.createElement('p');notice.className='nextcloud-note';notice.textContent=platform.accountNote;
       settingsSummary.append(notice,button(platform.logoutLabel || 'Sign out of self-hosted connector',async()=>{await api.flushDrafts();await platform.logout();},'log-out'));
     }
+    platform.renderProfileControls?.(settingsSummary);
     for (const profile of accounts.values()) {
       const summary = document.createElement('div'); summary.className = 'cloud-settings-account';
       const title = document.createElement('strong'); title.textContent = profile.client.account.label;
@@ -466,7 +470,7 @@
     remember.checked = secureAccountsAvailable() && platform.rememberDefault !== false;
     remember.disabled = !secureAccountsAvailable();
     rememberLabel.append(remember, document.createTextNode(platform.rememberLabel || 'Remember account on this device'));
-    if (!secureAccountsAvailable()) rememberLabel.title = platform.rememberUnavailable || 'Requires the preview with Windows Credential Manager support.';
+    if (!secureAccountsAvailable()) rememberLabel.title = platform.rememberUnavailable || 'Requires a platform adapter with secure credential storage.';
     form.append(providerLabel, selector, fields, rememberLabel, connect, cancel, note);
     cancel.hidden = true;
     form.addEventListener('submit', async event => {
@@ -530,6 +534,7 @@
     if (panel || !target.MarkdownCloudPlatform?.available()) return;
     api = editorApi;
     platform = target.MarkdownCloudPlatform.create();
+    platform.bindIdentity?.({flush:api.flushIdentityDrafts || api.flushDrafts,preserve:api.preserveIdentityDrafts,isBusy:()=>Boolean(pendingLogin) || saves.size>0 || uploading.size>0});
     platform.setEnabled(false);
     operations=target.MarkdownCloudOperations.create({api,sessions,saves,uploading,reviewedVersions,sessionKey,clientFor,accountState,saveWorkspace,browse,message,refresh,
       get activeClient(){return activeClient;},get currentFolder(){return currentFolder;},get workspace(){return workspace;},isHidden:()=>body.hidden || panel.offsetParent===null});

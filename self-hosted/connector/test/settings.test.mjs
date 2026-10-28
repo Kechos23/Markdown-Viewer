@@ -18,3 +18,12 @@ test('personal cloud accepts 12-character passwords and rejects shorter env and 
  await writeFile(file,password+'\n');validateConfig((await environmentConfiguration({...base,CLOUD_ACCESS_PASSWORD_FILE:file})).config);
  await writeFile(file,password.slice(1));await assert.rejects(environmentConfiguration({...base,CLOUD_ACCESS_PASSWORD_FILE:file}),/at least 12/);
 });
+
+
+test('multi-user needs no common password, initializes persistent profile state and validates policies',async t=>{
+ const directory=await mkdtemp(path.join(tmpdir(),'mv-multi-settings-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const env={CLOUD_ENABLED:'true',CLOUD_MODE:'multi-user',CLOUD_REMEMBER_DEVICE:'true',CLOUD_DATA_DIR:directory};
+ const result=await environmentConfiguration(env);validateConfig(result.config);assert.equal(result.config.owner,undefined);assert.equal(result.key.length,32);assert.equal(result.config.remember,false);assert.equal(result.config.maxProfiles,100);
+ assert.deepEqual((await environmentConfiguration(env)).key,result.key);
+ for(const change of [{CLOUD_MODE:'open'},{CLOUD_REMEMBER_DEVICE:'yes'},{CLOUD_MAX_PROFILES:'0'},{CLOUD_MAX_PROFILES:'10001'}])await assert.rejects(environmentConfiguration({...env,...change}));
+});

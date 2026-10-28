@@ -1,7 +1,7 @@
 FROM node:22-alpine
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_URL=https://github.com/ThisIs-Developer/Markdown-Viewer
-LABEL org.opencontainers.image.title="Markdown Viewer personal cloud edition" \
+LABEL org.opencontainers.image.title="Markdown Viewer cloud edition" \
       org.opencontainers.image.source=$SOURCE_URL \
       org.opencontainers.image.revision=$SOURCE_REVISION
 WORKDIR /app/self-hosted/connector
